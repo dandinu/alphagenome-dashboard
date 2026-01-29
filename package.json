@@ -1,0 +1,27 @@
+{
+  "name": "alphagenome",
+  "version": "1.0.0",
+  "description": "Personal genome analysis dashboard using AlphaGenome API",
+  "scripts": {
+    "install": "npm run install:backend && npm run install:frontend",
+    "install:backend": "cd backend && pip install -r ../requirements.txt",
+    "install:frontend": "cd frontend && npm install",
+    "start": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "backend": "PYTHONPATH=. uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000",
+    "frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "preview": "cd frontend && npm run preview"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "genomics",
+    "bioinformatics",
+    "alphagenome",
+    "vcf",
+    "variant-analysis"
+  ],
+  "license": "UNLICENSED",
+  "private": true
+}

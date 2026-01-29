@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #1a1a1a;
+  background-color: #f8fafc;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* DNA sequence styling */
+.dna-sequence {
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.05em;
+}
+
+.dna-a { color: #e74c3c; }
+.dna-t { color: #2ecc71; }
+.dna-g { color: #3498db; }
+.dna-c { color: #f1c40f; }
+
+/* Impact badges */
+.impact-high {
+  @apply bg-red-100 text-red-800 border-red-200;
+}
+
+.impact-moderate {
+  @apply bg-amber-100 text-amber-800 border-amber-200;
+}
+
+.impact-low {
+  @apply bg-blue-100 text-blue-800 border-blue-200;
+}
+
+.impact-modifier {
+  @apply bg-gray-100 text-gray-800 border-gray-200;
+}
+
+/* Clinical significance badges */
+.clinvar-pathogenic {
+  @apply bg-red-100 text-red-800;
+}
+
+.clinvar-likely-pathogenic {
+  @apply bg-orange-100 text-orange-800;
+}
+
+.clinvar-vus {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+.clinvar-likely-benign {
+  @apply bg-green-100 text-green-800;
+}
+
+.clinvar-benign {
+  @apply bg-emerald-100 text-emerald-800;
+}
+
+/* Loading animation */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Table styles */
+.data-table {
+  @apply w-full text-sm;
+}
+
+.data-table th {
+  @apply px-4 py-3 text-left font-medium text-gray-600 bg-gray-50 border-b;
+}
+
+.data-table td {
+  @apply px-4 py-3 border-b border-gray-100;
+}
+
+.data-table tr:hover td {
+  @apply bg-gray-50;
+}
+
+/* Card styles */
+.card {
+  @apply bg-white rounded-lg shadow-sm border border-gray-200;
+}
+
+.card-header {
+  @apply px-6 py-4 border-b border-gray-200;
+}
+
+.card-body {
+  @apply p-6;
+}
