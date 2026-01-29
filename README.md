@@ -2,6 +2,8 @@
 
 A web dashboard for analyzing whole genome sequencing data using Google DeepMind's AlphaGenome API, with ClinVar and PharmGKB annotations.
 
+![AlphaGenome Dashboard Screenshot](assets/screenshot.png)
+
 ## Features
 
 - **VCF File Loading**: Import and parse VCF files from whole genome sequencing

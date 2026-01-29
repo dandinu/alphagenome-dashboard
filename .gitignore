@@ -38,6 +38,7 @@ data/vcf/*.vcf
 data/vcf/*.vcf.gz
 data/vcf/*.vcf.gz.tbi
 data/annotations/clinvar/*.vcf*
+data/annotations/clinvar/*.txt.gz
 data/annotations/pharmgkb/*.tsv
 data/annotations/pharmgkb/*.zip
 
