@@ -2,9 +2,7 @@
 
 A web dashboard for analyzing whole genome sequencing data using Google DeepMind's AlphaGenome API, with ClinVar and PharmGKB annotations.
 
-![AlphaGenome Dashboard Screenshot](assets/dashboard_screen.png)
-
-![Variant Analysis Screenshot](assets/variant_analysis_screen.png)
+https://github.com/user-attachments/assets/9d68762e-0615-4cf9-9312-3f3f3920dbf3
 
 **[User Guide](docs/USER_GUIDE.md)** - How to use each section and interpret the data
 
