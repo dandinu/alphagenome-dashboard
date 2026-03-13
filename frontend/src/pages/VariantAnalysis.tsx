@@ -64,7 +64,6 @@ function VariantSelector() {
   const [searchTerm, setSearchTerm] = useState('');
   const { data, isLoading } = useVariants(1, 20, {
     search: searchTerm || undefined,
-    is_coding: true,
   });
 
   return (
