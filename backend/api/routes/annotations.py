@@ -8,6 +8,7 @@ import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from backend.db import get_db
@@ -247,44 +248,48 @@ async def get_disease_risk_panel(
     Identifies pathogenic and likely pathogenic variants
     from ClinVar annotations.
     """
-    clinvar_service = get_clinvar_service(db)
-
-    # Get user's variants with rsIDs
-    query = db.query(Variant).filter(Variant.rsid.isnot(None))
+    # Position-based join to find user variants with ClinVar annotations
+    # (works for VCFs without rsIDs — matches by chr + pos + ref + alt)
+    clinvar_join = (
+        db.query(Variant, ClinVarAnnotation)
+        .join(
+            ClinVarAnnotation,
+            and_(
+                ClinVarAnnotation.chromosome == Variant.chromosome,
+                ClinVarAnnotation.position == Variant.position,
+                ClinVarAnnotation.reference == Variant.reference,
+                ClinVarAnnotation.alternate == Variant.alternate,
+            ),
+        )
+    )
     if vcf_file_id:
-        query = query.filter(Variant.vcf_file_id == vcf_file_id)
-
-    variants = query.all()
-    rsid_to_variant = {v.rsid: v for v in variants}
+        clinvar_join = clinvar_join.filter(Variant.vcf_file_id == vcf_file_id)
 
     pathogenic = []
     likely_pathogenic = []
     risk_factors = []
 
-    for rsid, variant in rsid_to_variant.items():
-        clinvar_entries = clinvar_service.lookup_by_rsid(rsid)
+    for variant, entry in clinvar_join.all():
+        sig = entry.clinical_significance or ""
 
-        for entry in clinvar_entries:
-            sig = entry.clinical_significance or ""
+        disease_variant = DiseaseRiskVariant(
+            variant=VariantResponse.model_validate(variant),
+            disease_name=entry.disease_names or "Unknown",
+            disease_id=entry.disease_ids,
+            clinical_significance=sig,
+            inheritance=None,
+            risk_category="unknown",
+        )
 
-            disease_variant = DiseaseRiskVariant(
-                variant=VariantResponse.model_validate(variant),
-                disease_name=entry.disease_names or "Unknown",
-                disease_id=entry.disease_ids,
-                clinical_significance=sig,
-                inheritance=None,
-                risk_category="unknown",
-            )
-
-            if "Pathogenic" in sig and "Likely" not in sig:
-                disease_variant.risk_category = "high"
-                pathogenic.append(disease_variant)
-            elif "Likely_pathogenic" in sig:
-                disease_variant.risk_category = "moderate"
-                likely_pathogenic.append(disease_variant)
-            elif "risk_factor" in sig.lower():
-                disease_variant.risk_category = "low"
-                risk_factors.append(disease_variant)
+        if "Pathogenic" in sig and "Likely" not in sig:
+            disease_variant.risk_category = "high"
+            pathogenic.append(disease_variant)
+        elif "Likely_pathogenic" in sig or "Likely pathogenic" in sig:
+            disease_variant.risk_category = "moderate"
+            likely_pathogenic.append(disease_variant)
+        elif "risk_factor" in sig.lower():
+            disease_variant.risk_category = "low"
+            risk_factors.append(disease_variant)
 
     return DiseaseRiskPanel(
         pathogenic_variants=pathogenic,

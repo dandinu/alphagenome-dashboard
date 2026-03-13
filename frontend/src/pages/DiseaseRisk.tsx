@@ -427,7 +427,7 @@ function DiseaseVariantCard({
 
       {expanded && (
         <div className="card-body border-t border-gray-100">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 overflow-hidden">
             {/* Variant Details */}
             <div>
               <h5 className="text-sm font-medium text-gray-700 mb-3">
@@ -486,10 +486,14 @@ function DiseaseVariantCard({
                 Disease Association
               </h5>
               <dl className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <dt className="text-gray-500">Disease</dt>
-                  <dd className="font-medium text-gray-900 text-right max-w-[200px]">
-                    {disease_name}
+                <div>
+                  <dt className="text-gray-500 mb-1">Disease</dt>
+                  <dd className="font-medium text-gray-900">
+                    {disease_name.split('|').map((name, i) => (
+                      <span key={i} className="inline-block mr-2 mb-1 rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800">
+                        {name.trim()}
+                      </span>
+                    ))}
                   </dd>
                 </div>
                 <div className="flex justify-between">
@@ -504,10 +508,10 @@ function DiseaseVariantCard({
                     <dd>{inheritance}</dd>
                   </div>
                 )}
-                {diseaseVariant.disease_id && (
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">Disease ID</dt>
-                    <dd className="font-mono text-xs">
+                {diseaseVariant.disease_id && diseaseVariant.disease_id !== '-' && (
+                  <div>
+                    <dt className="text-gray-500 mb-1">Disease ID</dt>
+                    <dd className="font-mono text-xs break-all text-gray-600">
                       {diseaseVariant.disease_id}
                     </dd>
                   </div>
