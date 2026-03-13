@@ -13,6 +13,14 @@ from backend.services.pharmgkb_db import (
     get_pharmgkb_service,
     PHARMACOGENES,
 )
+from backend.services.plot_generator import (
+    generate_track_overlay,
+    generate_contact_map,
+    generate_sashimi_plot,
+    generate_ism_seqlogo,
+    generate_transcript_plot,
+    get_plot_path,
+)
 
 __all__ = [
     "VCFParser",
@@ -27,4 +35,10 @@ __all__ = [
     "PharmGKBService",
     "get_pharmgkb_service",
     "PHARMACOGENES",
+    "generate_track_overlay",
+    "generate_contact_map",
+    "generate_sashimi_plot",
+    "generate_ism_seqlogo",
+    "generate_transcript_plot",
+    "get_plot_path",
 ]

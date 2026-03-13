@@ -99,6 +99,66 @@ export function useBatchScore() {
   });
 }
 
+export function useHistoneAnalysis() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ variantId, tissues }: { variantId: number; tissues?: string[] }) =>
+      analysisApi.analyzeHistone(variantId, tissues),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['variant-analysis', variables.variantId] });
+    },
+  });
+}
+
+export function useTfBindingAnalysis() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ variantId, tissues }: { variantId: number; tissues?: string[] }) =>
+      analysisApi.analyzeTfBinding(variantId, tissues),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['variant-analysis', variables.variantId] });
+    },
+  });
+}
+
+export function useContactsAnalysis() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ variantId, tissues }: { variantId: number; tissues?: string[] }) =>
+      analysisApi.analyzeContacts(variantId, tissues),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['variant-analysis', variables.variantId] });
+    },
+  });
+}
+
+export function useIsmAnalysis() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ variantId, windowSize, outputTypes }: { variantId: number; windowSize?: number; outputTypes?: string[] }) =>
+      analysisApi.analyzeIsm(variantId, windowSize, outputTypes),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['variant-analysis', variables.variantId] });
+    },
+  });
+}
+
+export function useFullAnalysis() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ variantId, tissues }: { variantId: number; tissues?: string[] }) =>
+      analysisApi.runFullAnalysis(variantId, tissues),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['variant-analysis', variables.variantId] });
+    },
+  });
+}
+
 export function useBatchJobStatus(jobId: string | null) {
   return useQuery({
     queryKey: ['batch-job', jobId],

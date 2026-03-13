@@ -44,6 +44,7 @@ data/annotations/clinvar/*.vcf*
 data/annotations/clinvar/*.txt.gz
 data/annotations/pharmgkb/*.tsv
 data/annotations/pharmgkb/*.zip
+data/plots/
 
 # Node
 node_modules/

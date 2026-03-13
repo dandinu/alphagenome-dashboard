@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     # Data paths
     vcf_data_dir: Path = Path("./data/vcf")
     annotations_dir: Path = Path("./data/annotations")
+    plots_dir: Path = Path("./data/plots")
 
     # API Settings
     api_host: str = "0.0.0.0"
@@ -62,3 +63,4 @@ def ensure_directories():
     settings.vcf_data_dir.mkdir(parents=True, exist_ok=True)
     settings.clinvar_dir.mkdir(parents=True, exist_ok=True)
     settings.pharmgkb_dir.mkdir(parents=True, exist_ok=True)
+    settings.plots_dir.mkdir(parents=True, exist_ok=True)

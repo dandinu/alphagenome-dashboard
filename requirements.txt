@@ -7,6 +7,9 @@ python-dotenv>=1.0.0
 # AlphaGenome
 alphagenome
 
+# Liftover (GRCh37 -> GRCh38)
+pyliftover>=0.4
+
 # VCF parsing
 cyvcf2>=0.30.0
 pysam>=0.22.0

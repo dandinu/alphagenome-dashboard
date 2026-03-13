@@ -147,10 +147,28 @@ class AnalysisRequest(BaseModel):
 
     variant_id: int
     analysis_types: List[str] = Field(
-        default=["RNA_SEQ", "SPLICE_SITES", "ATAC"],
+        default=[
+            "RNA_SEQ", "SPLICE_SITES", "ATAC", "CHIP_HISTONE",
+            "CHIP_TF", "CONTACT_MAPS",
+        ],
         description="Types of analysis to run",
     )
     ontology_terms: Optional[List[str]] = None
+
+
+class ISMRequest(BaseModel):
+    """Request for in silico mutagenesis analysis."""
+
+    output_types: List[str] = Field(
+        default=["RNA_SEQ"],
+        description="Output types to score in ISM",
+    )
+    window_size: int = Field(
+        default=50,
+        ge=10,
+        le=200,
+        description="Number of bases on each side of the variant",
+    )
 
 
 class BatchAnalysisRequest(BaseModel):
@@ -183,6 +201,12 @@ class VariantAnalysisResponse(BaseModel):
     expression_impact: Optional[Dict[str, Any]] = None
     splicing_impact: Optional[Dict[str, Any]] = None
     chromatin_impact: Optional[Dict[str, Any]] = None
+    histone_impact: Optional[Dict[str, Any]] = None
+    tf_binding_impact: Optional[Dict[str, Any]] = None
+    contact_map_impact: Optional[Dict[str, Any]] = None
+    ism_results: Optional[Dict[str, Any]] = None
+    composite_splicing_score: Optional[float] = None
+    plots: Optional[Dict[str, str]] = None
 
 
 class BatchJobResponse(BaseModel):

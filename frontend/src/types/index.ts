@@ -113,6 +113,12 @@ export interface VariantAnalysis {
   expression_impact: Record<string, unknown> | null;
   splicing_impact: Record<string, unknown> | null;
   chromatin_impact: Record<string, unknown> | null;
+  histone_impact: Record<string, unknown> | null;
+  tf_binding_impact: Record<string, unknown> | null;
+  contact_map_impact: Record<string, unknown> | null;
+  ism_results: Record<string, unknown> | null;
+  composite_splicing_score: number | null;
+  plots: Record<string, string> | null;
 }
 
 export interface BatchJob {

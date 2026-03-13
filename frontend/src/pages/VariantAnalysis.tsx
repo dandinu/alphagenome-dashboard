@@ -11,7 +11,6 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  Cell,
 } from 'recharts';
 import {
   ArrowLeft,
@@ -23,9 +22,13 @@ import {
   Scissors,
   Brain,
   AlertCircle,
-  CheckCircle,
   ChevronDown,
   ChevronUp,
+  Layers,
+  Target,
+  Box,
+  Grid3X3,
+  Zap,
 } from 'lucide-react';
 import Header from '../components/layout/Header';
 import {
@@ -34,8 +37,9 @@ import {
   useScoreVariant,
   useOutputTypes,
   useVariants,
+  useFullAnalysis,
 } from '../hooks/useApi';
-import type { Variant, AnalysisResult } from '../types';
+import type { AnalysisResult } from '../types';
 
 const IMPACT_COLORS: Record<string, string> = {
   HIGH: 'bg-red-100 text-red-800 border-red-200',
@@ -46,16 +50,9 @@ const IMPACT_COLORS: Record<string, string> = {
 
 export default function VariantAnalysis() {
   const { variantId } = useParams<{ variantId: string }>();
-  const navigate = useNavigate();
-  const [selectedAnalysisTypes, setSelectedAnalysisTypes] = useState<string[]>([
-    'RNA_SEQ',
-    'SPLICE_SITES',
-    'ATAC',
-  ]);
 
   const parsedVariantId = variantId ? parseInt(variantId, 10) : null;
 
-  // If no variant selected, show variant selector
   if (!parsedVariantId) {
     return <VariantSelector />;
   }
@@ -171,6 +168,7 @@ function VariantAnalysisDetail({ variantId }: { variantId: number }) {
   const { data: analysis, isLoading: analysisLoading, refetch } = useVariantAnalysis(variantId);
   const { data: outputTypes } = useOutputTypes();
   const scoreVariant = useScoreVariant();
+  const fullAnalysis = useFullAnalysis();
 
   const [selectedTypes, setSelectedTypes] = useState<string[]>([
     'RNA_SEQ',
@@ -182,11 +180,14 @@ function VariantAnalysisDetail({ variantId }: { variantId: number }) {
   const handleRunAnalysis = () => {
     scoreVariant.mutate(
       { variantId, analysisTypes: selectedTypes },
-      {
-        onSuccess: () => {
-          refetch();
-        },
-      }
+      { onSuccess: () => refetch() }
+    );
+  };
+
+  const handleFullAnalysis = () => {
+    fullAnalysis.mutate(
+      { variantId },
+      { onSuccess: () => refetch() }
     );
   };
 
@@ -224,6 +225,8 @@ function VariantAnalysisDetail({ variantId }: { variantId: number }) {
       </div>
     );
   }
+
+  const isRunning = scoreVariant.isPending || fullAnalysis.isPending;
 
   return (
     <div className="flex-1 overflow-auto">
@@ -296,6 +299,19 @@ function VariantAnalysisDetail({ variantId }: { variantId: number }) {
                   )}
                 </div>
               )}
+
+              {/* Composite Splicing Score */}
+              {analysis?.composite_splicing_score != null && (
+                <div className="pt-2 border-t border-gray-100">
+                  <p className="text-xs text-gray-500 mb-1">Composite Splicing Score</p>
+                  <p className={clsx(
+                    'text-2xl font-bold',
+                    getScoreColor(analysis.composite_splicing_score)
+                  )}>
+                    {analysis.composite_splicing_score.toFixed(3)}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -307,31 +323,50 @@ function VariantAnalysisDetail({ variantId }: { variantId: number }) {
                 <h3 className="text-lg font-medium text-gray-900">
                   AlphaGenome Analysis
                 </h3>
-                <button
-                  onClick={handleRunAnalysis}
-                  disabled={scoreVariant.isPending || selectedTypes.length === 0}
-                  className="btn btn-primary flex items-center gap-2"
-                >
-                  {scoreVariant.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Running...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="h-4 w-4" />
-                      Run Analysis
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleFullAnalysis}
+                    disabled={isRunning}
+                    className="btn bg-purple-600 text-white hover:bg-purple-700 flex items-center gap-2"
+                  >
+                    {fullAnalysis.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Running...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="h-4 w-4" />
+                        Full Analysis
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleRunAnalysis}
+                    disabled={isRunning || selectedTypes.length === 0}
+                    className="btn btn-primary flex items-center gap-2"
+                  >
+                    {scoreVariant.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Running...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-4 w-4" />
+                        Run Selected
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
               <div className="card-body">
                 <p className="text-sm text-gray-600 mb-4">
-                  Select analysis types to run on this variant using AlphaGenome:
+                  Select analysis types or run Full Analysis for all capabilities:
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {(outputTypes?.output_types || ['RNA_SEQ', 'SPLICE_SITES', 'ATAC', 'CAGE', 'DNASE']).map(
-                    (type: string) => (
+                  {getAnalysisTypeButtons(outputTypes?.output_types).map(
+                    ({ type, icon: Icon, label }) => (
                       <button
                         key={type}
                         onClick={() => {
@@ -342,19 +377,43 @@ function VariantAnalysisDetail({ variantId }: { variantId: number }) {
                           );
                         }}
                         className={clsx(
-                          'rounded-full px-4 py-2 text-sm font-medium transition-colors',
+                          'rounded-full px-4 py-2 text-sm font-medium transition-colors flex items-center gap-1.5',
                           selectedTypes.includes(type)
                             ? 'bg-primary-600 text-white'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                         )}
                       >
-                        {type.replace(/_/g, ' ')}
+                        <Icon className="h-3.5 w-3.5" />
+                        {label}
                       </button>
                     )
                   )}
                 </div>
               </div>
             </div>
+
+            {/* Server-generated Plots */}
+            {analysis?.plots && Object.keys(analysis.plots).length > 0 && (
+              <div className="card">
+                <div className="card-header">
+                  <h3 className="text-lg font-medium text-gray-900">Generated Plots</h3>
+                </div>
+                <div className="card-body space-y-4">
+                  {Object.entries(analysis.plots).map(([type, url]) => (
+                    <div key={type}>
+                      <h5 className="text-sm font-medium text-gray-700 mb-2">
+                        {type.replace(/_/g, ' ')}
+                      </h5>
+                      <img
+                        src={url}
+                        alt={`${type} plot`}
+                        className="w-full rounded-lg border border-gray-200"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Results */}
             {analysisLoading ? (
@@ -369,8 +428,10 @@ function VariantAnalysisDetail({ variantId }: { variantId: number }) {
                   <AnalysisResultCard
                     key={result.id}
                     result={result}
+                    variantId={variantId}
                     expanded={expandedResults.has(result.analysis_type)}
                     onToggle={() => toggleExpanded(result.analysis_type)}
+                    plotUrl={analysis.plots?.[result.analysis_type] ?? null}
                   />
                 ))}
               </div>
@@ -380,13 +441,84 @@ function VariantAnalysisDetail({ variantId }: { variantId: number }) {
                   <Brain className="h-12 w-12 mb-2" />
                   <p>No analysis results yet</p>
                   <p className="text-sm">
-                    Click "Run Analysis" to analyze this variant with AlphaGenome
+                    Click "Full Analysis" or "Run Selected" to analyze this variant
                   </p>
                 </div>
               </div>
             )}
+
+            {/* Epigenomic Summary Cards */}
+            {analysis && (analysis.histone_impact || analysis.tf_binding_impact || analysis.contact_map_impact) && (
+              <div className="grid gap-4 sm:grid-cols-3">
+                {analysis.histone_impact && (
+                  <EpigenomicSummaryCard
+                    title="Histone Marks"
+                    icon={Layers}
+                    data={analysis.histone_impact as Record<string, unknown>}
+                  />
+                )}
+                {analysis.tf_binding_impact && (
+                  <EpigenomicSummaryCard
+                    title="TF Binding"
+                    icon={Target}
+                    data={analysis.tf_binding_impact as Record<string, unknown>}
+                  />
+                )}
+                {analysis.contact_map_impact && (
+                  <EpigenomicSummaryCard
+                    title="3D Contacts"
+                    icon={Box}
+                    data={analysis.contact_map_impact as Record<string, unknown>}
+                  />
+                )}
+              </div>
+            )}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function EpigenomicSummaryCard({
+  title,
+  icon: Icon,
+  data,
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  data: Record<string, unknown>;
+}) {
+  const summary = (data as Record<string, Record<string, unknown>>)?.summary ?? {};
+  const maxChange = typeof summary.max_change === 'number' ? summary.max_change : null;
+
+  return (
+    <div className="card">
+      <div className="card-body">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="rounded-lg bg-indigo-100 p-2">
+            <Icon className="h-4 w-4 text-indigo-600" />
+          </div>
+          <h4 className="font-medium text-gray-900 text-sm">{title}</h4>
+        </div>
+        {maxChange !== null && (
+          <div>
+            <p className="text-xs text-gray-500">Max Change</p>
+            <p className={clsx('text-lg font-semibold', getScoreColor(maxChange))}>
+              {maxChange.toFixed(4)}
+            </p>
+          </div>
+        )}
+        {typeof summary.n_tracks_affected === 'number' && (
+          <p className="text-xs text-gray-500 mt-1">
+            {String(summary.n_tracks_affected)} / {String(summary.n_tracks_total ?? '?')} tracks affected
+          </p>
+        )}
+        {typeof summary.n_tfs_affected === 'number' && (
+          <p className="text-xs text-gray-500 mt-1">
+            {summary.n_tfs_affected} TFs affected
+          </p>
+        )}
       </div>
     </div>
   );
@@ -436,16 +568,21 @@ function AnalysisResultCard({
   result,
   expanded,
   onToggle,
+  plotUrl,
 }: {
   result: AnalysisResult;
+  variantId: number;
   expanded: boolean;
   onToggle: () => void;
+  plotUrl: string | null;
 }) {
-  const icon = getAnalysisIcon(result.analysis_type);
-  const Icon = icon;
+  const Icon = getAnalysisIcon(result.analysis_type);
 
-  // Generate mock data for visualization
-  const plotData = result.plot_data || generateMockPlotData(result.analysis_type);
+  // plot_data from the backend is {} when no server-side plot was generated;
+  // fall back to mock data for the client-side Recharts visualisation.
+  const plotData = (Array.isArray(result.plot_data) && result.plot_data.length > 0)
+    ? result.plot_data
+    : generateMockPlotData(result.analysis_type);
 
   return (
     <div className="card">
@@ -492,84 +629,162 @@ function AnalysisResultCard({
           {result.score_details && Object.keys(result.score_details).length > 0 && (
             <div className="mb-6">
               <h5 className="text-sm font-medium text-gray-700 mb-3">Score Details</h5>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                {Object.entries(result.score_details).map(([key, value]) => (
-                  <div key={key} className="rounded-lg bg-gray-50 p-3">
-                    <p className="text-xs text-gray-500 capitalize">
-                      {key.replace(/_/g, ' ')}
-                    </p>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {typeof value === 'number' ? value.toFixed(3) : String(value)}
-                    </p>
-                  </div>
-                ))}
+              <div className="space-y-4">
+                {Object.entries(result.score_details).map(([key, value]) => {
+                  // Nested scorer object like {mean, max, min, std, n_tracks}
+                  if (value && typeof value === 'object' && !Array.isArray(value)) {
+                    const obj = value as Record<string, unknown>;
+                    // Skip "tidy" arrays from scorer data
+                    const displayEntries = Object.entries(obj).filter(
+                      ([k]) => k !== 'tidy'
+                    );
+                    if (displayEntries.length === 0) return null;
+                    return (
+                      <div key={key}>
+                        <p className="text-xs font-medium text-gray-500 capitalize mb-2">
+                          {key.replace(/_/g, ' ')}
+                        </p>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          {displayEntries.map(([k, v]) => (
+                            <div key={k} className="rounded-lg bg-gray-50 p-3">
+                              <p className="text-xs text-gray-500 capitalize">
+                                {k.replace(/_/g, ' ')}
+                              </p>
+                              <p className="text-base font-semibold text-gray-900">
+                                {typeof v === 'number'
+                                  ? Math.abs(v) < 0.001 && v !== 0
+                                    ? v.toExponential(2)
+                                    : v.toFixed(4)
+                                  : String(v ?? '-')}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  // Simple key-value
+                  return (
+                    <div key={key} className="rounded-lg bg-gray-50 p-3 inline-block mr-3">
+                      <p className="text-xs text-gray-500 capitalize">
+                        {key.replace(/_/g, ' ')}
+                      </p>
+                      <p className="text-base font-semibold text-gray-900">
+                        {typeof value === 'number'
+                          ? Math.abs(value) < 0.001 && value !== 0
+                            ? value.toExponential(2)
+                            : value.toFixed(4)
+                          : String(value ?? '-')}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* Visualization */}
-          <div>
-            <h5 className="text-sm font-medium text-gray-700 mb-3">
-              Prediction Track
-            </h5>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                {result.analysis_type.includes('SPLICE') ? (
-                  <BarChart data={plotData as any[]}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="position" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip />
-                    <Bar dataKey="reference" fill="#10b981" name="Reference" />
-                    <Bar dataKey="alternate" fill="#ef4444" name="Alternate" />
-                  </BarChart>
-                ) : (
-                  <LineChart data={plotData as any[]}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="position" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip />
-                    <Line
-                      type="monotone"
-                      dataKey="reference"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      name="Reference"
-                      dot={false}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="alternate"
-                      stroke="#ef4444"
-                      strokeWidth={2}
-                      name="Alternate"
-                      dot={false}
-                    />
-                  </LineChart>
-                )}
-              </ResponsiveContainer>
+          {/* Server-generated plot (preferred) */}
+          {plotUrl ? (
+            <div>
+              <h5 className="text-sm font-medium text-gray-700 mb-3">
+                AlphaGenome Plot
+              </h5>
+              <img
+                src={plotUrl}
+                alt={`${result.analysis_type} plot`}
+                className="w-full rounded-lg border border-gray-200"
+              />
             </div>
-            <div className="mt-2 flex items-center justify-center gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded bg-emerald-500" />
-                <span className="text-gray-600">Reference</span>
+          ) : (
+            /* Fallback: client-side chart */
+            <div>
+              <h5 className="text-sm font-medium text-gray-700 mb-3">
+                Prediction Track
+              </h5>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  {result.analysis_type.includes('SPLICE') ? (
+                    <BarChart data={plotData as Record<string, unknown>[]}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="position" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <Tooltip />
+                      <Bar dataKey="reference" fill="#10b981" name="Reference" />
+                      <Bar dataKey="alternate" fill="#ef4444" name="Alternate" />
+                    </BarChart>
+                  ) : (
+                    <LineChart data={plotData as Record<string, unknown>[]}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="position" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <Tooltip />
+                      <Line
+                        type="monotone"
+                        dataKey="reference"
+                        stroke="#10b981"
+                        strokeWidth={2}
+                        name="Reference"
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="alternate"
+                        stroke="#ef4444"
+                        strokeWidth={2}
+                        name="Alternate"
+                        dot={false}
+                      />
+                    </LineChart>
+                  )}
+                </ResponsiveContainer>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded bg-red-500" />
-                <span className="text-gray-600">Alternate</span>
+              <div className="mt-2 flex items-center justify-center gap-6 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="h-3 w-3 rounded bg-emerald-500" />
+                  <span className="text-gray-600">Reference</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-3 w-3 rounded bg-red-500" />
+                  <span className="text-gray-600">Alternate</span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
+// ------------------------------------------------------------------ #
+// Helpers
+// ------------------------------------------------------------------ #
+
+function getAnalysisTypeButtons(_outputTypes?: Record<string, string> | string[]) {
+  const types = [
+    { type: 'RNA_SEQ', icon: Activity, label: 'RNA-seq' },
+    { type: 'SPLICE_SITES', icon: Scissors, label: 'Splice Sites' },
+    { type: 'ATAC', icon: Dna, label: 'ATAC-seq' },
+    { type: 'DNASE', icon: Dna, label: 'DNase-seq' },
+    { type: 'CAGE', icon: Activity, label: 'CAGE' },
+    { type: 'CHIP_HISTONE', icon: Layers, label: 'Histone Marks' },
+    { type: 'CHIP_TF', icon: Target, label: 'TF Binding' },
+    { type: 'CONTACT_MAPS', icon: Box, label: '3D Contacts' },
+    { type: 'SPLICE_JUNCTIONS', icon: Scissors, label: 'Splice Junctions' },
+    { type: 'SPLICE_SITE_USAGE', icon: Scissors, label: 'Splice Usage' },
+    { type: 'PROCAP', icon: Activity, label: 'PRO-CAP' },
+  ];
+  return types;
+}
+
 function getAnalysisIcon(type: string) {
-  if (type.includes('RNA') || type.includes('CAGE')) return Activity;
+  if (type.includes('RNA') || type.includes('CAGE') || type.includes('PROCAP')) return Activity;
   if (type.includes('SPLICE')) return Scissors;
   if (type.includes('ATAC') || type.includes('DNASE')) return Dna;
+  if (type.includes('HISTONE')) return Layers;
+  if (type.includes('TF')) return Target;
+  if (type.includes('CONTACT')) return Box;
+  if (type === 'ISM') return Grid3X3;
   return Brain;
 }
 

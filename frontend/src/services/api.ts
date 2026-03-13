@@ -153,6 +153,39 @@ export const analysisApi = {
     const { data } = await api.post(`/analysis/splicing/${variantId}`);
     return data;
   },
+
+  analyzeHistone: async (variantId: number, tissues?: string[]) => {
+    const { data } = await api.post(`/analysis/histone/${variantId}`, { tissues });
+    return data;
+  },
+
+  analyzeTfBinding: async (variantId: number, tissues?: string[]) => {
+    const { data } = await api.post(`/analysis/tf-binding/${variantId}`, { tissues });
+    return data;
+  },
+
+  analyzeContacts: async (variantId: number, tissues?: string[]) => {
+    const { data } = await api.post(`/analysis/contacts/${variantId}`, { tissues });
+    return data;
+  },
+
+  analyzeIsm: async (variantId: number, windowSize = 50, outputTypes: string[] = ['RNA_SEQ']) => {
+    const { data } = await api.post(`/analysis/ism/${variantId}`, {
+      window_size: windowSize,
+      output_types: outputTypes,
+    });
+    return data;
+  },
+
+  runFullAnalysis: async (variantId: number, tissues?: string[]) => {
+    const { data } = await api.post(`/analysis/full/${variantId}`, null, {
+      params: { tissues: tissues?.join(',') },
+    });
+    return data;
+  },
+
+  getPlotUrl: (variantId: number, analysisType: string) =>
+    `/api/analysis/${variantId}/plot/${analysisType}`,
 };
 
 // ============== Annotations API ==============
