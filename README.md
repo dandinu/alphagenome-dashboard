@@ -6,6 +6,8 @@ A web dashboard for analyzing whole genome sequencing data using Google DeepMind
 
 ![Variant Analysis Screenshot](assets/variant_analysis_screen.png)
 
+**[User Guide](docs/USER_GUIDE.md)** - How to use each section and interpret the data
+
 ## Features
 
 - **VCF File Loading**: Import and parse VCF files from whole genome sequencing (SNP, indel, CNV, SV)
