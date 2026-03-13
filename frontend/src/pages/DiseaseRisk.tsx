@@ -19,6 +19,64 @@ import Header from '../components/layout/Header';
 import { useDiseaseRiskPanel, useLoadedFiles } from '../hooks/useApi';
 import type { DiseaseRiskVariant } from '../types';
 
+// --- Disease ID link helpers ---
+
+const DISEASE_DB_COLORS: Record<string, string> = {
+  OMIM: 'bg-blue-100 text-blue-700 border-blue-200',
+  MedGen: 'bg-green-100 text-green-700 border-green-200',
+  Orphanet: 'bg-purple-100 text-purple-700 border-purple-200',
+  MONDO: 'bg-orange-100 text-orange-700 border-orange-200',
+  HPO: 'bg-teal-100 text-teal-700 border-teal-200',
+  MeSH: 'bg-gray-100 text-gray-600 border-gray-200',
+};
+
+function parseDiseaseId(raw: string): { label: string; url: string | null; prefix: string } {
+  const parts = raw.trim().split(':');
+  if (parts.length < 2) return { label: raw.trim(), url: null, prefix: '' };
+
+  const prefix = parts[0];
+  // Handle double-prefix like MONDO:MONDO:0005709
+  let id = parts.slice(1).join(':');
+  if (id.startsWith(`${prefix}:`)) {
+    id = id.slice(prefix.length + 1);
+  }
+
+  let url: string | null = null;
+  switch (prefix) {
+    case 'OMIM':
+      url = `https://www.omim.org/entry/${id}`;
+      break;
+    case 'MedGen':
+      url = `https://www.ncbi.nlm.nih.gov/medgen/${id}`;
+      break;
+    case 'Orphanet':
+      // Strip ORPHA prefix if present
+      url = `https://www.orpha.net/consor/cgi-bin/OC_Exp.php?Lng=EN&Expert=${id.replace(/^ORPHA/, '')}`;
+      break;
+    case 'MONDO':
+      url = `https://monarchinitiative.org/disease/MONDO:${id}`;
+      break;
+    case 'HPO':
+      url = `https://hpo.jax.org/app/browse/term/HP:${id}`;
+      break;
+    case 'MeSH':
+      url = `https://www.ncbi.nlm.nih.gov/mesh/?term=${id}`;
+      break;
+  }
+
+  return { label: `${prefix}:${id}`, url, prefix };
+}
+
+function parseDiseaseIds(diseaseIdField: string): ReturnType<typeof parseDiseaseId>[] {
+  return diseaseIdField
+    .split('|')
+    .flatMap((group) => group.split(','))
+    .map(parseDiseaseId)
+    .filter((d) => d.label.length > 0);
+}
+
+// --- End disease ID helpers ---
+
 const SIGNIFICANCE_COLORS: Record<string, string> = {
   pathogenic: 'bg-red-100 text-red-800 border-red-200',
   'likely pathogenic': 'bg-orange-100 text-orange-800 border-orange-200',
@@ -511,8 +569,31 @@ function DiseaseVariantCard({
                 {diseaseVariant.disease_id && diseaseVariant.disease_id !== '-' && (
                   <div>
                     <dt className="text-gray-500 mb-1">Disease ID</dt>
-                    <dd className="font-mono text-xs break-all text-gray-600">
-                      {diseaseVariant.disease_id}
+                    <dd className="flex flex-wrap gap-1.5">
+                      {parseDiseaseIds(diseaseVariant.disease_id).map((d, i) =>
+                        d.url ? (
+                          <a
+                            key={i}
+                            href={d.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={clsx(
+                              'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium hover:opacity-80 transition-opacity',
+                              DISEASE_DB_COLORS[d.prefix] || 'bg-gray-100 text-gray-600 border-gray-200'
+                            )}
+                          >
+                            {d.label}
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ) : (
+                          <span
+                            key={i}
+                            className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-600"
+                          >
+                            {d.label}
+                          </span>
+                        )
+                      )}
                     </dd>
                   </div>
                 )}
@@ -528,27 +609,25 @@ function DiseaseVariantCard({
             >
               Analyze with AlphaGenome
             </Link>
+            <a
+              href={`https://www.ncbi.nlm.nih.gov/clinvar/?term=${variant.chromosome}[chr]+AND+${variant.position}[chrpos37]`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary text-sm inline-flex items-center gap-2"
+            >
+              View in ClinVar
+              <ExternalLink className="h-4 w-4" />
+            </a>
             {variant.rsid && (
-              <>
-                <a
-                  href={`https://www.ncbi.nlm.nih.gov/clinvar/?term=${variant.rsid}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-secondary text-sm inline-flex items-center gap-2"
-                >
-                  View in ClinVar
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-                <a
-                  href={`https://www.ncbi.nlm.nih.gov/snp/${variant.rsid}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-secondary text-sm inline-flex items-center gap-2"
-                >
-                  View in dbSNP
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              </>
+              <a
+                href={`https://www.ncbi.nlm.nih.gov/snp/${variant.rsid}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-secondary text-sm inline-flex items-center gap-2"
+              >
+                View in dbSNP
+                <ExternalLink className="h-4 w-4" />
+              </a>
             )}
           </div>
         </div>
