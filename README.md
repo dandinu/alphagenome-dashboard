@@ -6,12 +6,13 @@ A web dashboard for analyzing whole genome sequencing data using Google DeepMind
 
 ## Features
 
-- **VCF File Loading**: Import and parse VCF files from whole genome sequencing
-- **Variant Explorer**: Browse, filter, and search your genetic variants
+- **VCF File Loading**: Import and parse VCF files from whole genome sequencing (SNP, indel, CNV, SV)
+- **Variant Explorer**: Browse, filter, and search millions of variants with pagination
 - **AlphaGenome Analysis**: Deep analysis of variants using DeepMind's genomic AI model
 - **Disease Risk Panel**: View pathogenic and likely pathogenic variants from ClinVar
 - **Pharmacogenomics**: Drug-gene interaction analysis from PharmGKB
-- **Annotation Integration**: ClinVar clinical significance and PharmGKB drug annotations
+- **Position-based Annotation Matching**: ClinVar lookup by chromosome + position + ref + alt (works without rsIDs)
+- **CNV/SV Support**: Handles symbolic alleles (`<DEL>`, `<DUP>`, `<INV>`) and breakend notation
 
 ## Prerequisites
 
@@ -39,21 +40,25 @@ Create a `.env` file in the root directory (or edit the existing one):
 ALPHAGENOME_API_KEY=your_api_key_here
 ALPHAGENOME_PROJECT_ID=your_project_id_here
 
+# Genome assembly (GRCh37 or GRCh38) — must match your VCF alignment
+GENOME_ASSEMBLY=GRCh37
+
 # Optional: Database location (defaults to ./data/alphagenome.db)
 DATABASE_URL=sqlite:///./data/alphagenome.db
 ```
 
 ### 3. Place Your VCF Files
 
-Copy your VCF files to the `data/vcf/` directory:
+Copy your VCF files (with tabix indexes) to the `data/vcf/` directory:
 
 ```bash
-cp /path/to/your/genome.vcf.gz data/vcf/
+cp /path/to/your/*.vcf.gz /path/to/your/*.vcf.gz.tbi data/vcf/
 ```
 
-Supported formats:
-- `.vcf`
-- `.vcf.gz`
+Supported file types:
+- `.vcf` and `.vcf.gz` (gzipped recommended for WGS-scale data)
+- SNP, indel, CNV, and SV VCFs (including symbolic alleles like `<DEL>`, `<DUP>`)
+- Works with unannotated VCFs (no rsIDs or VEP/SnpEff annotations required)
 
 ### 4. Start the Application
 
@@ -128,6 +133,10 @@ alphagenome/
 ```bash
 python scripts/download_clinvar.py
 ```
+Then load into the database via API (defaults to GRCh37 assembly to match typical WGS alignments):
+```bash
+curl -X POST "http://localhost:8000/api/annotations/clinvar/load?assembly=GRCh37"
+```
 
 ### PharmGKB
 ```bash
@@ -169,6 +178,13 @@ npm run dev
 - **React Query** - Data fetching
 - **Recharts** - Visualizations
 - **React Router** - Navigation
+
+## Design Notes
+
+- **Position-based annotation matching**: Most WGS pipelines produce VCFs without rsIDs. ClinVar and variant stats use chromosome + position + ref + alt matching as the primary strategy, with rsID lookup as a fallback when available.
+- **GRCh37 default**: The genome assembly is configurable (`GENOME_ASSEMBLY` env var) but defaults to GRCh37, which is still the most common WGS alignment target. ClinVar is filtered to the configured assembly during loading.
+- **Background loading**: VCF parsing and ClinVar ingestion run as FastAPI background tasks to avoid blocking the API during multi-million-row loads.
+- **Symbolic allele handling**: The VCF parser recognizes `<DEL>`, `<DUP>`, `<DUP:TANDEM>`, `<INS>`, `<INV>`, `<CNV>`, and breakend notation rather than misclassifying them by ref/alt string length comparison.
 
 ## Data Privacy
 
