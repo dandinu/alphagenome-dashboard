@@ -112,17 +112,30 @@ async def list_variants(
     for v in variants:
         response = VariantResponse.model_validate(v)
 
-        # Check for ClinVar annotation
+        # Check for ClinVar annotation (rsID first, then position-based fallback)
+        clinvar = None
         if v.rsid:
             clinvar = (
                 db.query(ClinVarAnnotation)
                 .filter(ClinVarAnnotation.rsid == v.rsid)
                 .first()
             )
-            if clinvar:
-                response.clinvar = ClinVarAnnotationResponse.model_validate(clinvar)
+        if not clinvar:
+            chrom = v.chromosome.replace("chr", "")
+            clinvar = (
+                db.query(ClinVarAnnotation)
+                .filter(
+                    ClinVarAnnotation.chromosome == chrom,
+                    ClinVarAnnotation.position == v.position,
+                    ClinVarAnnotation.reference == v.reference,
+                    ClinVarAnnotation.alternate == v.alternate,
+                )
+                .first()
+            )
+        if clinvar:
+            response.clinvar = ClinVarAnnotationResponse.model_validate(clinvar)
 
-        # Check for PharmGKB annotations
+        # Check for PharmGKB annotations (rsID only — PharmGKB has no position data)
         if v.rsid:
             pharmgkb = (
                 db.query(PharmGKBAnnotation)
@@ -195,46 +208,49 @@ async def get_variant_stats(
     )
     by_consequence = {c: n for c, n in consequence_counts if c}
 
-    # ClinVar stats (if loaded)
-    rsids = [v.rsid for v in query.filter(Variant.rsid.isnot(None)).all()]
-
-    clinvar_pathogenic = 0
-    clinvar_benign = 0
-    clinvar_vus = 0
-
-    if rsids:
-        clinvar_pathogenic = (
-            db.query(ClinVarAnnotation)
-            .filter(
-                ClinVarAnnotation.rsid.in_(rsids),
-                ClinVarAnnotation.clinical_significance.in_(
-                    ["Pathogenic", "Pathogenic/Likely_pathogenic", "Likely_pathogenic"]
-                ),
-            )
-            .count()
+    # ClinVar stats via position-based join (works for unannotated VCFs without rsIDs)
+    clinvar_join = (
+        db.query(Variant.id, ClinVarAnnotation.clinical_significance)
+        .join(
+            ClinVarAnnotation,
+            and_(
+                ClinVarAnnotation.chromosome == Variant.chromosome,
+                ClinVarAnnotation.position == Variant.position,
+                ClinVarAnnotation.reference == Variant.reference,
+                ClinVarAnnotation.alternate == Variant.alternate,
+            ),
         )
+    )
+    if vcf_file_id:
+        clinvar_join = clinvar_join.filter(Variant.vcf_file_id == vcf_file_id)
 
-        clinvar_benign = (
-            db.query(ClinVarAnnotation)
-            .filter(
-                ClinVarAnnotation.rsid.in_(rsids),
-                ClinVarAnnotation.clinical_significance.in_(
-                    ["Benign", "Benign/Likely_benign", "Likely_benign"]
-                ),
-            )
-            .count()
+    clinvar_pathogenic = clinvar_join.filter(
+        ClinVarAnnotation.clinical_significance.in_(
+            [
+                "Pathogenic", "Pathogenic/Likely pathogenic",
+                "Pathogenic/Likely_pathogenic", "Likely pathogenic",
+                "Likely_pathogenic",
+            ]
         )
+    ).count()
 
-        clinvar_vus = (
-            db.query(ClinVarAnnotation)
-            .filter(
-                ClinVarAnnotation.rsid.in_(rsids),
-                ClinVarAnnotation.clinical_significance == "Uncertain_significance",
-            )
-            .count()
+    clinvar_benign = clinvar_join.filter(
+        ClinVarAnnotation.clinical_significance.in_(
+            [
+                "Benign", "Benign/Likely benign", "Benign/Likely_benign",
+                "Likely benign", "Likely_benign",
+            ]
         )
+    ).count()
 
-    # PharmGKB stats
+    clinvar_vus = clinvar_join.filter(
+        ClinVarAnnotation.clinical_significance.in_(
+            ["Uncertain significance", "Uncertain_significance"]
+        )
+    ).count()
+
+    # PharmGKB stats (rsID-based only)
+    rsids = [v.rsid for v in query.filter(Variant.rsid.isnot(None)).limit(10000).all()]
     pharmgkb_variants = (
         db.query(PharmGKBAnnotation)
         .filter(PharmGKBAnnotation.rsid.in_(rsids))
@@ -269,15 +285,28 @@ async def get_variant(variant_id: int, db: Session = Depends(get_db)):
 
     response = VariantResponse.model_validate(variant)
 
-    # Add ClinVar annotation
+    # Add ClinVar annotation (rsID first, then position-based fallback)
+    clinvar = None
     if variant.rsid:
         clinvar = (
             db.query(ClinVarAnnotation)
             .filter(ClinVarAnnotation.rsid == variant.rsid)
             .first()
         )
-        if clinvar:
-            response.clinvar = ClinVarAnnotationResponse.model_validate(clinvar)
+    if not clinvar:
+        chrom = variant.chromosome.replace("chr", "")
+        clinvar = (
+            db.query(ClinVarAnnotation)
+            .filter(
+                ClinVarAnnotation.chromosome == chrom,
+                ClinVarAnnotation.position == variant.position,
+                ClinVarAnnotation.reference == variant.reference,
+                ClinVarAnnotation.alternate == variant.alternate,
+            )
+            .first()
+        )
+    if clinvar:
+        response.clinvar = ClinVarAnnotationResponse.model_validate(clinvar)
 
     # Add PharmGKB annotations
     if variant.rsid:

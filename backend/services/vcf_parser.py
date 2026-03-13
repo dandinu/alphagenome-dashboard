@@ -213,6 +213,17 @@ class VCFParser:
 
     def _determine_variant_type(self, ref: str, alt: str) -> str:
         """Determine the type of variant."""
+        # Handle symbolic alleles (e.g. <DEL>, <DUP>, <INS>, <INV>, <DUP:TANDEM>)
+        if alt.startswith("<") and alt.endswith(">"):
+            sym = alt[1:-1].split(":")[0].upper()
+            if sym in ("DEL", "DUP", "INS", "INV", "CNV"):
+                return sym
+            return "SV"
+
+        # Handle breakend notation (e.g. ]13:123456]T or T[13:123456[)
+        if "[" in alt or "]" in alt:
+            return "BND"
+
         if len(ref) == 1 and len(alt) == 1:
             return "SNP"
         elif len(ref) > len(alt):

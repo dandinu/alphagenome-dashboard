@@ -136,7 +136,7 @@ class ClinVarService:
         self,
         filepath: Optional[str] = None,
         batch_size: int = 10000,
-        assembly: str = "GRCh38",
+        assembly: Optional[str] = None,
     ) -> int:
         """
         Load ClinVar variant_summary.txt.gz file into database.
@@ -151,6 +151,10 @@ class ClinVarService:
         Returns:
             Number of records loaded
         """
+        if assembly is None:
+            settings = get_settings()
+            assembly = settings.genome_assembly
+
         if filepath is None:
             filepath = self.clinvar_dir / "variant_summary.txt.gz"
 

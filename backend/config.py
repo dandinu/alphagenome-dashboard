@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     api_port: int = 8000
     debug: bool = True
 
+    # Genome assembly (GRCh37 or GRCh38)
+    genome_assembly: str = "GRCh37"
+
     # CORS origins for frontend
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 

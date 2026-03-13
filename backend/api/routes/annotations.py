@@ -45,7 +45,7 @@ async def clinvar_status(db: Session = Depends(get_db)):
 @router.post("/clinvar/load")
 async def load_clinvar(
     background_tasks: BackgroundTasks,
-    assembly: str = Query("GRCh38", description="Genome assembly (GRCh37 or GRCh38)"),
+    assembly: Optional[str] = Query(None, description="Genome assembly (GRCh37 or GRCh38). Defaults to config setting."),
     db: Session = Depends(get_db),
 ):
     """

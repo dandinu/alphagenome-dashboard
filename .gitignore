@@ -33,6 +33,9 @@ ENV/
 *.sqlite
 *.sqlite3
 
+# Raw sequencing data (BAM, FASTQ, VCFs)
+RAW/
+
 # Data files (keep structure, ignore actual data)
 data/vcf/*.vcf
 data/vcf/*.vcf.gz
