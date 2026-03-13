@@ -274,8 +274,9 @@ class PharmGKBService:
         """
         Load PharmGKB clinical annotations TSV file.
 
-        Expected columns: rsid, gene, drug, phenotype, significance,
-                         evidence_level, annotation_text
+        Supports two formats:
+        - clinicalVariants.tsv: columns variant, gene, type, level of evidence, chemicals, phenotypes
+        - var_drug_ann.tsv: columns Variant/Haplotypes, Gene, Drug(s), Level of Evidence, etc.
         """
         filepath = Path(filepath)
         if not filepath.exists():
@@ -289,29 +290,62 @@ class PharmGKBService:
 
             for row in reader:
                 try:
-                    ann = PharmGKBAnnotation(
-                        rsid=row.get("Variant/Haplotypes", row.get("rsid", "")),
-                        gene_symbol=row.get("Gene", row.get("gene", "")),
-                        drug_name=row.get("Drug(s)", row.get("drug", "")),
-                        drug_id=row.get("Chemical ID", ""),
-                        phenotype_category=row.get("Phenotype Category", ""),
-                        significance=row.get("Significance", ""),
-                        level_of_evidence=row.get("Level of Evidence", ""),
-                        annotation_text=row.get(
-                            "Annotation Text", row.get("Sentence", "")
-                        ),
-                        guideline_name=row.get("Guideline", ""),
-                        allele=row.get("Alleles", ""),
+                    # Support both clinicalVariants.tsv and var_drug_ann.tsv column names
+                    variant_id = (
+                        row.get("variant")
+                        or row.get("Variant/Haplotypes")
+                        or row.get("rsid", "")
                     )
+                    gene = (
+                        row.get("gene")
+                        or row.get("Gene", "")
+                    )
+                    drug = (
+                        row.get("chemicals")
+                        or row.get("Drug(s)")
+                        or row.get("drug", "")
+                    )
+                    evidence = (
+                        row.get("level of evidence")
+                        or row.get("Level of Evidence", "")
+                    )
+                    phenotype = (
+                        row.get("type")
+                        or row.get("Phenotype Category", "")
+                    )
+                    phenotypes_detail = row.get("phenotypes", "")
 
-                    batch.append(ann)
-                    count += 1
+                    # clinicalVariants.tsv may have multiple chemicals separated by commas/semicolons
+                    # Create one record per drug for proper matching
+                    drugs = [d.strip() for d in drug.replace(";", ",").split(",") if d.strip()] or [""]
 
-                    if len(batch) >= batch_size:
-                        self.db.bulk_save_objects(batch)
-                        self.db.commit()
-                        batch = []
-                        logger.info(f"Loaded {count} PharmGKB records...")
+                    for drug_name in drugs:
+                        ann = PharmGKBAnnotation(
+                            rsid=variant_id,
+                            gene_symbol=gene,
+                            drug_name=drug_name,
+                            drug_id=row.get("Chemical ID", ""),
+                            phenotype_category=phenotype,
+                            significance=row.get("Significance", ""),
+                            level_of_evidence=evidence,
+                            annotation_text=(
+                                row.get("Annotation Text")
+                                or row.get("Sentence")
+                                or phenotypes_detail
+                                or ""
+                            ),
+                            guideline_name=row.get("Guideline", ""),
+                            allele=row.get("Alleles", ""),
+                        )
+
+                        batch.append(ann)
+                        count += 1
+
+                        if len(batch) >= batch_size:
+                            self.db.bulk_save_objects(batch)
+                            self.db.commit()
+                            batch = []
+                            logger.info(f"Loaded {count} PharmGKB records...")
 
                 except Exception as e:
                     logger.warning(f"Error parsing PharmGKB row: {e}")

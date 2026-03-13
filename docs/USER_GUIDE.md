@@ -8,15 +8,17 @@ A practical guide to using each section of the dashboard and interpreting the re
 
 1. [Dashboard](#dashboard)
 2. [Load Data](#load-data)
-3. [Variant Explorer](#variant-explorer)
-4. [Variant Analysis (AlphaGenome)](#variant-analysis)
+3. [Annotating Your VCFs](#annotating-your-vcfs)
+4. [Variant Explorer](#variant-explorer)
+5. [Variant Analysis (AlphaGenome)](#variant-analysis)
    - [Score Details](#score-details)
    - [Prediction Track](#prediction-track)
    - [Analysis Types](#analysis-types)
    - [Epigenomic Summary Cards](#epigenomic-summary-cards)
    - [Composite Splicing Score](#composite-splicing-score)
-5. [Pharmacogenomics](#pharmacogenomics)
-6. [Disease Risk](#disease-risk)
+6. [Pharmacogenomics](#pharmacogenomics)
+7. [Disease Risk](#disease-risk)
+8. [Loading Annotation Databases](#loading-annotation-databases)
 
 ---
 
@@ -53,8 +55,79 @@ This is where you import your VCF (Variant Call Format) files.
 
 - **Supported formats**: `.vcf`, `.vcf.gz` (gzipped recommended for whole-genome files)
 - **Variant types**: SNPs, indels, CNVs, and structural variants are all loaded
-- **No annotations required**: Your VCF does not need rsIDs, VEP, or SnpEff annotations. The dashboard matches variants by position.
+- **No annotations required**: Your VCF does not need rsIDs, VEP, or SnpEff annotations. The dashboard matches variants by position. However, annotated VCFs provide significantly more data — see [Annotating Your VCFs](#annotating-your-vcfs).
 - **Assembly**: Your VCF should be aligned to GRCh37 (hg19) or GRCh38 (hg38). Set `GENOME_ASSEMBLY` in `.env` to match. The dashboard automatically lifts over coordinates to GRCh38 for AlphaGenome analysis.
+
+### Unannotated vs. Annotated VCFs
+
+Raw VCFs from sequencing pipelines (DRAGEN, GATK, etc.) typically contain only variant calls without functional annotation. Here's what you get with each:
+
+| Feature | Unannotated VCF | Annotated VCF |
+|---|---|---|
+| Variant positions loaded | Yes | Yes |
+| Gene symbols | No | Yes |
+| Consequences (missense, stop_gained, etc.) | No | Yes |
+| Impact levels (HIGH/MODERATE/LOW) | No | Yes |
+| Coding variant count | 0 | Accurate count |
+| Pharmacogenomics matching | Limited (rsID only) | Full (gene symbol + rsID) |
+| Disease Risk panel | Works (position-based ClinVar) | Works (position-based ClinVar) |
+| Variant Analysis page | Shows all variants | Can filter to coding variants |
+
+If your VCFs are unannotated and you see "0 coding variants" in Load Data, annotate them first.
+
+---
+
+## Annotating Your VCFs
+
+The built-in annotation script uses **SnpEff** to add gene symbols, consequences, and impact levels to your VCF files.
+
+### Prerequisites
+
+- **Java 8+** (SnpEff is a Java application)
+- **Homebrew** (macOS, for installing bcftools)
+
+### Running the annotation
+
+```bash
+./scripts/annotate_vcf.sh
+```
+
+This automatically:
+
+1. **Downloads SnpEff** (~70 MB) into `tools/snpEff/`
+2. **Downloads the GRCh37.75 database** (matches standard WGS reference genomes)
+3. **Installs bcftools** via Homebrew (for VCF indexing)
+4. **Annotates** `*.filtered.snp.vcf.gz` and `*.filtered.indel.vcf.gz` files
+5. **Outputs** `*.annotated.vcf.gz` files alongside the originals in `data/vcf/`
+
+### What SnpEff adds
+
+For each variant, SnpEff adds an `ANN` field in the VCF INFO column containing:
+
+- **Gene symbol** (e.g., BRCA1, CYP2D6, TP53)
+- **Consequence** (e.g., missense_variant, stop_gained, splice_donor_variant)
+- **Impact** (HIGH, MODERATE, LOW, MODIFIER)
+- **Transcript ID** and **protein change** (e.g., p.Arg248Trp)
+
+### Performance
+
+| File type | Typical size | Annotation time |
+|---|---|---|
+| Filtered SNP VCF | 200-300 MB | ~10 minutes |
+| Filtered indel VCF | 50-100 MB | ~2 minutes |
+
+### After annotation
+
+1. Go to **Load Data** in the dashboard
+2. The new `.annotated.vcf.gz` files appear in "Available Files"
+3. Load them — you'll see accurate coding variant counts
+4. The Variant Analysis, Pharmacogenomics, and Disease Risk panels will now have full data
+
+### Flags used
+
+The script uses these SnpEff options:
+- `-canon` — Use canonical transcripts only (one annotation per gene, reduces noise)
+- `-no-intergenic`, `-no-downstream`, `-no-upstream` — Skip variants far from genes (reduces output size for WGS)
 
 ---
 
@@ -211,6 +284,21 @@ composite_splicing = max(splice_sites) + max(splice_site_usage) + max(splice_jun
 
 Shows how your genetic variants affect drug response, using data from PharmGKB.
 
+### Requirements
+
+The Pharmacogenomics panel requires:
+1. **PharmGKB data loaded** — see [Loading Annotation Databases](#loading-annotation-databases)
+2. **Annotated VCFs** (recommended) — the panel matches variants by gene symbol. Unannotated VCFs can still match by rsID if variants have dbSNP IDs.
+
+### How matching works
+
+The panel uses two matching strategies:
+
+1. **Gene-symbol match**: Finds your variants in known pharmacogenes (CYP2D6, CYP2C19, etc.) by gene symbol from SnpEff annotations
+2. **rsID match**: Queries PharmGKB for known pharmacogenomic rsIDs and matches against your variants by rsID
+
+Both strategies are used simultaneously — you get results as long as either path finds matches.
+
 ### What you see
 
 Each gene card shows:
@@ -265,6 +353,19 @@ Shows variants in your genome that are classified as disease-causing or disease-
 - **Disease**: The associated condition(s)
 - **Clinical Significance**: ClinVar classification
 - **Risk Category**: HIGH (pathogenic), MODERATE (likely pathogenic), LOW (risk factor)
+- **Disease IDs**: Clickable badges linking to external databases:
+
+| Badge Color | Database | Example |
+|---|---|---|
+| Blue | OMIM | Links to omim.org/entry/... |
+| Green | MedGen | Links to ncbi.nlm.nih.gov/medgen/... |
+| Purple | Orphanet | Links to orpha.net/... |
+| Orange | MONDO | Links to monarchinitiative.org/disease/... |
+| Teal | HPO | Links to hpo.jax.org/... |
+| Gray | MeSH | Links to ncbi.nlm.nih.gov/mesh/... |
+
+- **View in ClinVar**: Each variant has a direct link to ClinVar using position-based search (works even without rsIDs)
+- **View in dbSNP**: Available when the variant has an rsID
 
 ### How to interpret
 
@@ -280,3 +381,56 @@ Shows variants in your genome that are classified as disease-causing or disease-
 - ClinVar classifications are based on published evidence and can change over time.
 - Many variants are classified as "Uncertain Significance" (VUS) - these are excluded from the Disease Risk panel but visible in the Variant Explorer.
 - Population frequency matters: a "pathogenic" variant that is common (>1% frequency) in your ancestry group may actually be benign. Check the gnomAD frequency in the Variant Explorer.
+
+---
+
+## Loading Annotation Databases
+
+The Disease Risk and Pharmacogenomics panels require external annotation databases to be downloaded and loaded. Without them, these panels will be empty.
+
+### ClinVar (required for Disease Risk)
+
+ClinVar provides variant-disease associations from NCBI.
+
+```bash
+# Step 1: Download ClinVar data
+python scripts/download_clinvar.py
+
+# Step 2: Load into database (start the app first)
+curl -X POST "http://localhost:8000/api/annotations/clinvar/load?assembly=GRCh37"
+```
+
+Loading takes a few minutes. Check status:
+```bash
+curl http://localhost:8000/api/annotations/clinvar/status
+```
+
+### PharmGKB (required for Pharmacogenomics)
+
+PharmGKB provides drug-gene interaction data. It requires manual download due to their licensing.
+
+1. Visit https://www.pharmgkb.org/downloads (free account required)
+2. Under **Clinical Variant Data**, download **clinicalVariants.zip** (72 KB)
+3. Extract and place `clinicalVariants.tsv` in `data/annotations/pharmgkb/`
+4. Load into database:
+
+```bash
+curl -X POST "http://localhost:8000/api/annotations/pharmgkb/load"
+```
+
+Check status:
+```bash
+curl http://localhost:8000/api/annotations/pharmgkb/status
+```
+
+You can also check the status of both databases on the **Settings** page in the dashboard.
+
+### Summary of data dependencies
+
+| Dashboard Section | Requires | Annotation Data |
+|---|---|---|
+| **Dashboard** | VCF loaded | ClinVar + PharmGKB for full stats |
+| **Variant Explorer** | VCF loaded | None (annotations enrich display) |
+| **Variant Analysis** | VCF loaded | None (uses AlphaGenome API) |
+| **Disease Risk** | VCF loaded | **ClinVar** (position-based matching) |
+| **Pharmacogenomics** | Annotated VCF loaded | **PharmGKB** (gene symbol + rsID matching) |

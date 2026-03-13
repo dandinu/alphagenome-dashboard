@@ -133,6 +133,59 @@ async def pharmgkb_status(db: Session = Depends(get_db)):
     }
 
 
+@router.post("/pharmgkb/load")
+async def load_pharmgkb(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """
+    Load PharmGKB clinicalVariants.tsv into the database.
+
+    Looks for clinicalVariants.tsv (or var_drug_ann.tsv) in data/annotations/pharmgkb/.
+    """
+    service = get_pharmgkb_service(db)
+
+    if service.is_loaded():
+        return {
+            "status": "already_loaded",
+            "message": "PharmGKB data is already loaded",
+            "total_annotations": service.get_annotation_count(),
+        }
+
+    background_tasks.add_task(_load_pharmgkb_task)
+
+    return {
+        "status": "loading",
+        "message": "PharmGKB data loading started in background. Check /pharmgkb/status for progress.",
+    }
+
+
+def _load_pharmgkb_task():
+    """Background task to load PharmGKB data."""
+    from backend.db import SessionLocal
+    from backend.config import get_settings
+
+    db = SessionLocal()
+    try:
+        settings = get_settings()
+        service = get_pharmgkb_service(db)
+
+        # Try known filenames
+        pharmgkb_dir = settings.pharmgkb_dir
+        for filename in ["clinicalVariants.tsv", "var_drug_ann.tsv", "clinical_ann.tsv"]:
+            filepath = pharmgkb_dir / filename
+            if filepath.exists():
+                count = service.load_clinical_annotations(str(filepath))
+                logger.info(f"PharmGKB loading complete from {filename}: {count} records")
+                return
+
+        logger.error(f"No PharmGKB TSV file found in {pharmgkb_dir}")
+    except Exception as e:
+        logger.error(f"Error loading PharmGKB: {e}")
+    finally:
+        db.close()
+
+
 @router.get("/pharmgkb/rsid/{rsid}", response_model=List[PharmGKBAnnotationResponse])
 async def lookup_pharmgkb_by_rsid(rsid: str, db: Session = Depends(get_db)):
     """Look up PharmGKB annotations by rsID."""
@@ -177,25 +230,65 @@ async def get_pharmacogenomics_panel(
 
     Analyzes user's variants against known pharmacogenes and
     provides drug response recommendations.
+
+    Uses two matching strategies:
+    1. Gene-symbol match: variants annotated with a pharmacogene symbol
+    2. rsID match: variants matched to PharmGKB annotations by rsID
+       (works for unannotated VCFs)
     """
     pharmgkb_service = get_pharmgkb_service(db)
 
-    # Get user's variants in pharmacogenes
-    query = db.query(Variant).filter(
+    # --- Strategy 1: gene-symbol match (annotated VCFs) ---
+    gene_query = db.query(Variant).filter(
         Variant.gene_symbol.in_(list(PHARMACOGENES.keys()))
     )
     if vcf_file_id:
-        query = query.filter(Variant.vcf_file_id == vcf_file_id)
+        gene_query = gene_query.filter(Variant.vcf_file_id == vcf_file_id)
 
-    variants = query.all()
+    gene_matched_variants = gene_query.all()
 
-    # Group variants by gene
+    # --- Strategy 2: rsID match against PharmGKB (unannotated VCFs) ---
+    # Get all PharmGKB rsIDs for pharmacogenes
+    pharmgkb_rsids = (
+        db.query(PharmGKBAnnotation.rsid, PharmGKBAnnotation.gene_symbol)
+        .filter(
+            PharmGKBAnnotation.rsid.isnot(None),
+            PharmGKBAnnotation.gene_symbol.in_(list(PHARMACOGENES.keys())),
+        )
+        .distinct()
+        .all()
+    )
+    rsid_to_gene = {row.rsid: row.gene_symbol for row in pharmgkb_rsids}
+
+    rsid_matched_variants = []
+    if rsid_to_gene:
+        rsid_query = db.query(Variant).filter(
+            Variant.rsid.in_(list(rsid_to_gene.keys()))
+        )
+        if vcf_file_id:
+            rsid_query = rsid_query.filter(Variant.vcf_file_id == vcf_file_id)
+        rsid_matched_variants = rsid_query.all()
+
+    # Merge both sets (deduplicate by variant id)
+    seen_ids = set()
     variants_by_gene = {}
-    for v in variants:
+
+    for v in gene_matched_variants:
+        seen_ids.add(v.id)
         gene = v.gene_symbol.upper()
-        if gene not in variants_by_gene:
-            variants_by_gene[gene] = []
-        variants_by_gene[gene].append(v)
+        variants_by_gene.setdefault(gene, []).append(v)
+
+    for v in rsid_matched_variants:
+        if v.id in seen_ids:
+            continue
+        seen_ids.add(v.id)
+        gene = rsid_to_gene.get(v.rsid, "").upper()
+        if gene:
+            variants_by_gene.setdefault(gene, []).append(v)
+
+    all_variants = gene_matched_variants + [
+        v for v in rsid_matched_variants if v.id not in {mv.id for mv in gene_matched_variants}
+    ]
 
     # Generate reports for each pharmacogene
     gene_reports = []
@@ -233,7 +326,7 @@ async def get_pharmacogenomics_panel(
     return PharmacogenomicsPanel(
         genes=gene_reports,
         total_actionable_variants=total_actionable,
-        summary=f"Found {len(variants)} variants in {len(variants_by_gene)} pharmacogenes. "
+        summary=f"Found {len(all_variants)} variants in {len(variants_by_gene)} pharmacogenes. "
         f"{total_actionable} variants have actionable clinical annotations.",
     )
 

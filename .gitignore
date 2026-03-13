@@ -46,6 +46,15 @@ data/annotations/pharmgkb/*.tsv
 data/annotations/pharmgkb/*.zip
 data/plots/
 
+# SnpEff / annotation tools
+tools/
+snpEff_summary.html
+snpEff_genes.txt
+data/vcf/*.stats.csv
+data/vcf/*.stats.genes.txt
+data/vcf/*.annotated.vcf.gz
+data/vcf/*.annotated.vcf.gz.tbi
+
 # Node
 node_modules/
 frontend/node_modules/
