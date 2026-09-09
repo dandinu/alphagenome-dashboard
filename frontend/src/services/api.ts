@@ -14,6 +14,11 @@ import type {
   PharmGKBAnnotation,
   ApiStatus,
   VariantFilters,
+  AtlasAnnotation,
+  AtlasAnnotateOptions,
+  AtlasJob,
+  TopVariantEntry,
+  TriageRecommendation,
 } from '../types';
 
 const api = axios.create({
@@ -186,6 +191,50 @@ export const analysisApi = {
 
   getPlotUrl: (variantId: number, analysisType: string) =>
     `/api/analysis/${variantId}/plot/${analysisType}`,
+};
+
+// ============== Atlas API ==============
+
+export const atlasApi = {
+  annotate: async (
+    vcfFileId: number,
+    options: AtlasAnnotateOptions = {}
+  ): Promise<AtlasJob> => {
+    const { data } = await api.post('/atlas/annotate', {
+      vcf_file_id: vcfFileId,
+      ...options,
+    });
+    return data;
+  },
+
+  getJobStatus: async (jobId: string): Promise<AtlasJob> => {
+    const { data } = await api.get(`/atlas/job/${jobId}`);
+    return data;
+  },
+
+  getVariantAnnotation: async (variantId: number): Promise<AtlasAnnotation> => {
+    const { data } = await api.get(`/atlas/variant/${variantId}`);
+    return data;
+  },
+
+  getTop: async (vcfFileId?: number, limit = 10): Promise<TopVariantEntry[]> => {
+    const { data } = await api.get('/atlas/top', {
+      params: { vcf_file_id: vcfFileId, limit },
+    });
+    return data;
+  },
+
+  getTriage: async (variantId: number): Promise<TriageRecommendation> => {
+    const { data } = await api.get(`/atlas/triage/${variantId}`);
+    return data;
+  },
+
+  runTriaged: async (
+    variantId: number
+  ): Promise<{ triage: TriageRecommendation; analyses: AnalysisResult[] }> => {
+    const { data } = await api.post(`/atlas/triage/${variantId}/run`);
+    return data;
+  },
 };
 
 // ============== Annotations API ==============

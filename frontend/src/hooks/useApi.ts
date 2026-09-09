@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { variantsApi, filesApi, analysisApi, annotationsApi } from '../services/api';
-import type { VariantFilters } from '../types';
+import { useEffect, useRef } from 'react';
+import { variantsApi, filesApi, analysisApi, annotationsApi, atlasApi } from '../services/api';
+import type { VariantFilters, AtlasAnnotateOptions } from '../types';
 
 // ============== Variants Hooks ==============
 
@@ -176,6 +177,78 @@ export function useOutputTypes() {
     queryKey: ['output-types'],
     queryFn: analysisApi.getOutputTypes,
     staleTime: Infinity,
+  });
+}
+
+// ============== Atlas Hooks ==============
+
+export function useStartAtlasAnnotation() {
+  return useMutation({
+    mutationFn: ({ vcfFileId, options }: { vcfFileId: number; options?: AtlasAnnotateOptions }) =>
+      atlasApi.annotate(vcfFileId, options),
+  });
+}
+
+export function useAtlasJobStatus(jobId: string | null) {
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: ['atlas-job', jobId],
+    queryFn: () => atlasApi.getJobStatus(jobId!),
+    enabled: jobId !== null,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data?.status === 'running' || data?.status === 'queued' ? 3000 : false;
+    },
+  });
+
+  // Refresh variant data once the annotation job finishes
+  const prevStatus = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const status = query.data?.status;
+    if (status === 'completed' && prevStatus.current !== 'completed') {
+      queryClient.invalidateQueries({ queryKey: ['variants'] });
+      queryClient.invalidateQueries({ queryKey: ['variant-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['atlas-top'] });
+    }
+    prevStatus.current = status;
+  }, [query.data?.status, queryClient]);
+
+  return query;
+}
+
+export function useAtlasAnnotation(variantId: number | null, isSnv = true) {
+  return useQuery({
+    queryKey: ['atlas-annotation', variantId],
+    queryFn: () => atlasApi.getVariantAnnotation(variantId!),
+    enabled: variantId !== null && isSnv,
+    retry: false,
+  });
+}
+
+export function useTopImpactVariants(vcfFileId?: number, limit = 10) {
+  return useQuery({
+    queryKey: ['atlas-top', vcfFileId, limit],
+    queryFn: () => atlasApi.getTop(vcfFileId, limit),
+  });
+}
+
+export function useTriage(variantId: number | null) {
+  return useQuery({
+    queryKey: ['atlas-triage', variantId],
+    queryFn: () => atlasApi.getTriage(variantId!),
+    enabled: variantId !== null,
+  });
+}
+
+export function useRunTriaged() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ variantId }: { variantId: number }) => atlasApi.runTriaged(variantId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['variant-analysis', variables.variantId] });
+      queryClient.invalidateQueries({ queryKey: ['variant', variables.variantId] });
+    },
   });
 }
 

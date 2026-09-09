@@ -38,6 +38,7 @@ def init_db():
         AnalysisResult,
         ClinVarAnnotation,
         PharmGKBAnnotation,
+        AtlasAnnotation,
     )
 
     Base.metadata.create_all(bind=engine)

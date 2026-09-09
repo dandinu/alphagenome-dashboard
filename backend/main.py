@@ -24,6 +24,7 @@ from backend.api import (
     variants_router,
     analysis_router,
     annotations_router,
+    atlas_router,
 )
 
 # Configure logging
@@ -89,6 +90,7 @@ app.include_router(files_router, prefix="/api")
 app.include_router(variants_router, prefix="/api")
 app.include_router(analysis_router, prefix="/api")
 app.include_router(annotations_router, prefix="/api")
+app.include_router(atlas_router, prefix="/api")
 
 
 @app.get("/")

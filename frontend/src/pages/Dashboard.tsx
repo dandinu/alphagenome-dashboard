@@ -19,15 +19,17 @@ import {
   TrendingUp,
   Database,
   ArrowRight,
+  Sparkles,
 } from 'lucide-react';
 import Header from '../components/layout/Header';
-import { useVariantStats, useLoadedFiles } from '../hooks/useApi';
+import { useVariantStats, useLoadedFiles, useTopImpactVariants } from '../hooks/useApi';
 
 const COLORS = ['#0ea5e9', '#f59e0b', '#10b981', '#6366f1', '#ec4899'];
 
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useVariantStats();
   const { data: filesData } = useLoadedFiles();
+  const { data: topVariants } = useTopImpactVariants(undefined, 10);
 
   const impactData = stats?.by_impact
     ? Object.entries(stats.by_impact).map(([name, value]) => ({
@@ -174,6 +176,80 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <EmptyState message="No impact data available" />
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Top Impactful Variants (Atlas AVI) */}
+        <div className="mt-6">
+          <div className="card">
+            <div className="card-header">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary-600" />
+                <h3 className="text-lg font-medium text-gray-900">
+                  Top Impactful Variants (Atlas AVI)
+                </h3>
+              </div>
+            </div>
+            <div className="card-body">
+              {topVariants && topVariants.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Location</th>
+                        <th>Gene</th>
+                        <th>rsID</th>
+                        <th>AVI Score</th>
+                        <th>Top Driver</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {topVariants.map((entry, index) => (
+                        <tr key={entry.variant.id} className="hover:bg-gray-50">
+                          <td className="text-gray-500">{index + 1}</td>
+                          <td className="font-mono text-sm">
+                            {entry.variant.chromosome}:
+                            {entry.variant.position.toLocaleString()}
+                          </td>
+                          <td className="font-medium">
+                            {entry.variant.gene_symbol ?? '-'}
+                          </td>
+                          <td>{entry.variant.rsid ?? '-'}</td>
+                          <td>
+                            <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 font-mono text-xs font-medium text-red-800">
+                              {entry.avi_score.toFixed(3)}
+                            </span>
+                          </td>
+                          <td className="text-sm capitalize text-gray-600">
+                            {entry.top_modality?.replace(/_/g, ' ') ?? '-'}
+                          </td>
+                          <td>
+                            <Link
+                              to={`/analysis/${entry.variant.id}`}
+                              className="text-sm font-medium text-primary-600 hover:underline"
+                            >
+                              Analyze
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="flex h-32 flex-col items-center justify-center text-gray-400">
+                  <p>No Atlas annotations yet</p>
+                  <Link
+                    to="/variants"
+                    className="mt-1 text-sm text-primary-600 hover:underline"
+                  >
+                    Annotate your variants with Atlas in the Variant Explorer
+                  </Link>
+                </div>
               )}
             </div>
           </div>

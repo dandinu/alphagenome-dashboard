@@ -5,6 +5,7 @@ from backend.api.routes import (
     variants_router,
     analysis_router,
     annotations_router,
+    atlas_router,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "variants_router",
     "analysis_router",
     "annotations_router",
+    "atlas_router",
 ]

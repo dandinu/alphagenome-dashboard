@@ -17,6 +17,7 @@ from backend.models import (
     Variant,
     VCFFile,
     AnalysisResult,
+    AtlasAnnotation,
     ClinVarAnnotation,
     PharmGKBAnnotation,
     VariantResponse,
@@ -46,6 +47,9 @@ async def list_variants(
     has_clinvar: Optional[bool] = None,
     search: Optional[str] = None,
     vcf_file_id: Optional[int] = None,
+    min_avi: Optional[float] = None,
+    sort_by: Optional[str] = None,
+    sort_dir: str = "desc",
     db: Session = Depends(get_db),
 ):
     """
@@ -94,18 +98,43 @@ async def list_variants(
             )
         )
 
+    if min_avi is not None or sort_by == "avi_score":
+        query = query.outerjoin(
+            AtlasAnnotation, AtlasAnnotation.variant_id == Variant.id
+        )
+    if min_avi is not None:
+        query = query.filter(AtlasAnnotation.avi_score >= min_avi)
+
     # Get total count
     total = query.count()
     total_pages = ceil(total / page_size)
 
+    # Apply ordering
+    if sort_by == "avi_score":
+        avi_order = (
+            AtlasAnnotation.avi_score.asc()
+            if sort_dir == "asc"
+            else AtlasAnnotation.avi_score.desc()
+        )
+        # NULL AVI scores always sort last
+        query = query.order_by(
+            AtlasAnnotation.avi_score.is_(None), avi_order
+        )
+    else:
+        query = query.order_by(Variant.chromosome, Variant.position)
+
     # Apply pagination
     offset = (page - 1) * page_size
-    variants = (
-        query.order_by(Variant.chromosome, Variant.position)
-        .offset(offset)
-        .limit(page_size)
+    variants = query.offset(offset).limit(page_size).all()
+
+    # One keyed query per page for Atlas scores (avoids N+1)
+    page_ids = [v.id for v in variants]
+    atlas_by_variant = {
+        a.variant_id: a
+        for a in db.query(AtlasAnnotation)
+        .filter(AtlasAnnotation.variant_id.in_(page_ids))
         .all()
-    )
+    } if page_ids else {}
 
     # Enrich with annotations
     variant_responses = []
@@ -153,6 +182,11 @@ async def list_variants(
             is not None
         )
         response.has_analysis = has_analysis
+
+        atlas = atlas_by_variant.get(v.id)
+        if atlas:
+            response.avi_score = atlas.avi_score
+            response.top_modality = atlas.top_modality
 
         variant_responses.append(response)
 
@@ -326,6 +360,16 @@ async def get_variant(variant_id: int, db: Session = Depends(get_db)):
         is not None
     )
     response.has_analysis = has_analysis
+
+    # Add Atlas AVI score if annotated
+    atlas = (
+        db.query(AtlasAnnotation)
+        .filter(AtlasAnnotation.variant_id == variant.id)
+        .first()
+    )
+    if atlas:
+        response.avi_score = atlas.avi_score
+        response.top_modality = atlas.top_modality
 
     return response
 

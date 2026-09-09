@@ -8,8 +8,13 @@ import {
   Filter,
   ExternalLink,
   Microscope,
+  Sparkles,
+  ArrowUpDown,
+  ArrowDown,
+  ArrowUp,
 } from 'lucide-react';
 import Header from '../components/layout/Header';
+import AtlasAnnotateDialog from '../components/AtlasAnnotateDialog';
 import { useVariants } from '../hooks/useApi';
 import type { Variant, VariantFilters } from '../types';
 
@@ -25,6 +30,7 @@ export default function VariantExplorer() {
   const [pageSize] = useState(50);
   const [filters, setFilters] = useState<VariantFilters>({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [atlasDialogOpen, setAtlasDialogOpen] = useState(false);
 
   const { data, isLoading, error } = useVariants(page, pageSize, {
     ...filters,
@@ -41,6 +47,19 @@ export default function VariantExplorer() {
       ...prev,
       [key]: value === '' ? undefined : value,
     }));
+    setPage(1);
+  };
+
+  const toggleAviSort = () => {
+    setFilters((prev) => {
+      if (prev.sort_by !== 'avi_score') {
+        return { ...prev, sort_by: 'avi_score', sort_dir: 'desc' };
+      }
+      if (prev.sort_dir === 'desc') {
+        return { ...prev, sort_dir: 'asc' };
+      }
+      return { ...prev, sort_by: undefined, sort_dir: undefined };
+    });
     setPage(1);
   };
 
@@ -111,9 +130,42 @@ export default function VariantExplorer() {
                 />
                 <span className="text-sm text-gray-700">Coding only</span>
               </label>
+
+              {/* Min AVI */}
+              <input
+                type="number"
+                step="0.05"
+                min="0"
+                max="1"
+                placeholder="Min AVI"
+                value={filters.min_avi ?? ''}
+                onChange={(e) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    min_avi: e.target.value === '' ? undefined : Number(e.target.value),
+                  }))
+                }
+                className="w-24 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
+                title="Only show variants with an Atlas AVI score at or above this value"
+              />
+
+              {/* Atlas annotate */}
+              <button
+                onClick={() => setAtlasDialogOpen(true)}
+                className="flex items-center gap-2 rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700"
+              >
+                <Sparkles className="h-4 w-4" />
+                Annotate with Atlas
+              </button>
             </div>
           </div>
         </div>
+
+        <AtlasAnnotateDialog
+          open={atlasDialogOpen}
+          onClose={() => setAtlasDialogOpen(false)}
+          defaultVcfFileId={filters.vcf_file_id}
+        />
 
         {/* Variants Table */}
         <div className="card overflow-hidden">
@@ -136,6 +188,24 @@ export default function VariantExplorer() {
                       <th>Gene</th>
                       <th>Change</th>
                       <th>Impact</th>
+                      <th>
+                        <button
+                          onClick={toggleAviSort}
+                          className="flex items-center gap-1 hover:text-primary-600"
+                          title="Sort by Atlas AVI score"
+                        >
+                          AVI
+                          {filters.sort_by === 'avi_score' ? (
+                            filters.sort_dir === 'asc' ? (
+                              <ArrowUp className="h-3 w-3" />
+                            ) : (
+                              <ArrowDown className="h-3 w-3" />
+                            )
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-gray-400" />
+                          )}
+                        </button>
+                      </th>
                       <th>Consequence</th>
                       <th>Genotype</th>
                       <th>ClinVar</th>
@@ -241,6 +311,25 @@ function VariantRow({ variant }: { variant: Variant }) {
           <span className="text-gray-400">-</span>
         )}
       </td>
+      <td>
+        {variant.avi_score != null ? (
+          <span
+            className={clsx(
+              'inline-flex rounded-full px-2 py-0.5 font-mono text-xs font-medium',
+              getAviClass(variant.avi_score)
+            )}
+            title={
+              variant.top_modality
+                ? `Top driver: ${variant.top_modality.replace(/_/g, ' ')}`
+                : undefined
+            }
+          >
+            {variant.avi_score.toFixed(3)}
+          </span>
+        ) : (
+          <span className="text-gray-400">—</span>
+        )}
+      </td>
       <td className="max-w-[200px] truncate text-sm text-gray-600">
         {variant.consequence?.replace(/_/g, ' ') ?? '-'}
       </td>
@@ -283,6 +372,13 @@ function VariantRow({ variant }: { variant: Variant }) {
       </td>
     </tr>
   );
+}
+
+function getAviClass(score: number): string {
+  if (score >= 0.8) return 'bg-red-100 text-red-800';
+  if (score >= 0.5) return 'bg-orange-100 text-orange-800';
+  if (score >= 0.2) return 'bg-yellow-100 text-yellow-800';
+  return 'bg-gray-100 text-gray-600';
 }
 
 function getClinVarClass(significance: string | null | undefined): string {

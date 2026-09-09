@@ -92,6 +92,12 @@ class Variant(Base):
     analysis_results = relationship(
         "AnalysisResult", back_populates="variant", cascade="all, delete-orphan"
     )
+    atlas_annotation = relationship(
+        "AtlasAnnotation",
+        back_populates="variant",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
     # Indexes
     __table_args__ = (
@@ -124,6 +130,35 @@ class AnalysisResult(Base):
 
     # Relationship
     variant = relationship("Variant", back_populates="analysis_results")
+
+
+class AtlasAnnotation(Base):
+    """Precomputed AlphaGenome Atlas scores (AVI + attributions) per variant."""
+
+    __tablename__ = "atlas_annotations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    variant_id = Column(
+        Integer, ForeignKey("variants.id"), unique=True, index=True
+    )  # 1:1 with variant
+
+    # Unified impact score (AlphaGenome + AlphaMissense)
+    avi_score = Column(Float, index=True)
+
+    # Raw per-feature importances and modality aggregations
+    feature_importance = Column(JSON)  # {"MERGED_SPLICING": ..., "ALPHAMISSENSE": ...}
+    modality_scores = Column(JSON)  # {"splicing": ..., "expression": ...}
+    attributions = Column(JSON)  # normalized modality shares, sum ~= 1
+    top_modality = Column(String(30), index=True)
+
+    # Provenance
+    atlas_version = Column(String(50))
+    lifted_chromosome = Column(String(10))  # GRCh38 coordinates used for the query
+    lifted_position = Column(Integer)
+    annotated_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationship
+    variant = relationship("Variant", back_populates="atlas_annotation")
 
 
 class ClinVarAnnotation(Base):

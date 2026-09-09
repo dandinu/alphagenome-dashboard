@@ -21,6 +21,11 @@ from backend.models.schemas import (
     PharmacogenomicsPanel,
     DiseaseRiskVariant,
     DiseaseRiskPanel,
+    AtlasAnnotationResponse,
+    AtlasAnnotateRequest,
+    AtlasJobResponse,
+    TopVariantEntry,
+    TriageResponse,
 )
 from backend.models.database import (
     VCFFile,
@@ -28,6 +33,7 @@ from backend.models.database import (
     AnalysisResult,
     ClinVarAnnotation,
     PharmGKBAnnotation,
+    AtlasAnnotation,
 )
 
 __all__ = [
@@ -52,10 +58,16 @@ __all__ = [
     "PharmacogenomicsPanel",
     "DiseaseRiskVariant",
     "DiseaseRiskPanel",
+    "AtlasAnnotationResponse",
+    "AtlasAnnotateRequest",
+    "AtlasJobResponse",
+    "TopVariantEntry",
+    "TriageResponse",
     # Database models
     "VCFFile",
     "Variant",
     "AnalysisResult",
     "ClinVarAnnotation",
     "PharmGKBAnnotation",
+    "AtlasAnnotation",
 ]

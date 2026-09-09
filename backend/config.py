@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     alphagenome_requests_per_minute: int = 60
     alphagenome_batch_size: int = 10
 
+    # AlphaGenome Atlas (precomputed AVI scores)
+    atlas_batch_size: int = 256
+    atlas_timeout_seconds: int = 60
+    atlas_max_retries: int = 3
+    atlas_triage_threshold: float = 0.15
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

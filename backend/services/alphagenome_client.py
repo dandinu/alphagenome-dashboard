@@ -7,12 +7,12 @@ epigenomic analysis (histone/TF/3D contacts), ISM, and composite splicing scorin
 """
 
 import logging
-import re
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
 from backend.config import get_settings
+from backend.services import genome_utils
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +49,6 @@ TISSUE_ONTOLOGY = {
     "bone_marrow": "UBERON:0002371",
     "adipose": "UBERON:0001013",
 }
-
-# Regex for symbolic alleles (CNVs, SVs, breakends)
-_SYMBOLIC_ALLELE_RE = re.compile(r"^<.*>$|^\]|^\[|.*\[|.*\]")
-
 
 # Supported model sequence lengths (must be exact)
 SUPPORTED_LENGTHS = [16384, 131072, 524288, 1048576]
@@ -115,7 +111,6 @@ class AlphaGenomeClient:
         self.api_key = api_key or settings.alphagenome_api_key
         self._model = None
         self._initialized = False
-        self._liftover = None  # lazy-loaded LiftOver object
 
     def _ensure_initialized(self):
         """Lazy initialization of the AlphaGenome model."""
@@ -148,33 +143,12 @@ class AlphaGenomeClient:
         The position is expected in 1-based VCF coordinates. pyliftover
         uses 0-based coordinates internally.
         """
-        if get_settings().genome_assembly == "GRCh38":
-            return chrom, pos
-
-        if self._liftover is None:
-            from pyliftover import LiftOver
-            self._liftover = LiftOver("hg19", "hg38")
-
-        result = self._liftover.convert_coordinate(chrom, pos - 1)  # 0-based
-        if not result:
-            raise ValueError(
-                f"Cannot lift over {chrom}:{pos} from GRCh37 to GRCh38 "
-                "(position is unmapped in the chain file)"
-            )
-        return result[0][0], int(result[0][1]) + 1  # back to 1-based
+        return genome_utils.liftover_position(chrom, pos)
 
     @staticmethod
     def _validate_alleles(variant: VariantInput) -> None:
         """Reject symbolic alleles (CNV/SV) that cannot be scored."""
-        if _SYMBOLIC_ALLELE_RE.match(variant.alternate):
-            raise ValueError(
-                f"Symbolic alleles cannot be scored by AlphaGenome: "
-                f"{variant.alternate}. Only SNVs and short indels are supported."
-            )
-        if _SYMBOLIC_ALLELE_RE.match(variant.reference):
-            raise ValueError(
-                f"Symbolic reference allele cannot be scored: {variant.reference}"
-            )
+        genome_utils.validate_alleles(variant.reference, variant.alternate)
 
     # ------------------------------------------------------------------ #
     # AlphaGenome object builders

@@ -7,6 +7,11 @@ from backend.services.alphagenome_client import (
     VariantInput,
     AnalysisOutput,
 )
+from backend.services.atlas_client import (
+    AtlasService,
+    AtlasResult,
+    get_atlas_client,
+)
 from backend.services.clinvar_db import ClinVarService, get_clinvar_service
 from backend.services.pharmgkb_db import (
     PharmGKBService,
@@ -30,6 +35,9 @@ __all__ = [
     "get_alphagenome_client",
     "VariantInput",
     "AnalysisOutput",
+    "AtlasService",
+    "AtlasResult",
+    "get_atlas_client",
     "ClinVarService",
     "get_clinvar_service",
     "PharmGKBService",

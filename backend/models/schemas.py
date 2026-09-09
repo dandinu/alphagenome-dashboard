@@ -93,6 +93,8 @@ class VariantResponse(VariantBase):
     clinvar: Optional["ClinVarAnnotationResponse"] = None
     pharmgkb: Optional[List["PharmGKBAnnotationResponse"]] = None
     has_analysis: bool = False
+    avi_score: Optional[float] = None
+    top_modality: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -219,6 +221,66 @@ class BatchJobResponse(BaseModel):
     failed: int
     created_at: datetime
     estimated_completion: Optional[datetime] = None
+
+
+# ============== Atlas Schemas ==============
+
+
+class AtlasAnnotationResponse(BaseModel):
+    """Precomputed Atlas scores for a variant."""
+
+    id: int
+    variant_id: int
+    avi_score: Optional[float]
+    feature_importance: Optional[Dict[str, float]]
+    modality_scores: Optional[Dict[str, float]]
+    attributions: Optional[Dict[str, float]]
+    top_modality: Optional[str]
+    atlas_version: Optional[str]
+    lifted_chromosome: Optional[str]
+    lifted_position: Optional[int]
+    annotated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AtlasAnnotateRequest(BaseModel):
+    """Request to batch-annotate a VCF file's SNVs with Atlas scores."""
+
+    vcf_file_id: int
+    non_ref_only: bool = True
+    pass_only: bool = True
+    min_quality: Optional[float] = None
+    coding_only: bool = False
+    chromosomes: Optional[List[str]] = None
+    overwrite: bool = False
+
+
+class AtlasJobResponse(BatchJobResponse):
+    """Status of an Atlas batch-annotation job."""
+
+    skipped_non_snv: int = 0
+    skipped_existing: int = 0
+
+
+class TopVariantEntry(BaseModel):
+    """One row of the top-impact-variants panel."""
+
+    variant: VariantResponse
+    avi_score: float
+    top_modality: Optional[str]
+    attributions: Optional[Dict[str, float]]
+
+
+class TriageResponse(BaseModel):
+    """Attribution-driven recommendation of which deep-dives to run."""
+
+    source: str  # "atlas" or "fallback_full"
+    avi_score: Optional[float] = None
+    attributions: Optional[Dict[str, float]] = None
+    recommended_analysis_types: List[str]
+    skipped: List[str] = []
 
 
 # ============== Annotation Schemas ==============

@@ -29,8 +29,11 @@ import {
   Box,
   Grid3X3,
   Zap,
+  Sparkles,
+  Info,
 } from 'lucide-react';
 import Header from '../components/layout/Header';
+import AttributionBreakdown from '../components/AttributionBreakdown';
 import {
   useVariant,
   useVariantAnalysis,
@@ -38,6 +41,9 @@ import {
   useOutputTypes,
   useVariants,
   useFullAnalysis,
+  useAtlasAnnotation,
+  useTriage,
+  useRunTriaged,
 } from '../hooks/useApi';
 import type { AnalysisResult } from '../types';
 
@@ -169,6 +175,11 @@ function VariantAnalysisDetail({ variantId }: { variantId: number }) {
   const scoreVariant = useScoreVariant();
   const fullAnalysis = useFullAnalysis();
 
+  const isSnv = variant?.variant_type === 'SNP';
+  const { data: atlasAnnotation } = useAtlasAnnotation(variantId, isSnv);
+  const { data: triage } = useTriage(variantId);
+  const runTriaged = useRunTriaged();
+
   const [selectedTypes, setSelectedTypes] = useState<string[]>([
     'RNA_SEQ',
     'SPLICE_SITES',
@@ -225,7 +236,11 @@ function VariantAnalysisDetail({ variantId }: { variantId: number }) {
     );
   }
 
-  const isRunning = scoreVariant.isPending || fullAnalysis.isPending;
+  const isRunning = scoreVariant.isPending || fullAnalysis.isPending || runTriaged.isPending;
+
+  const handleRunTriaged = () => {
+    runTriaged.mutate({ variantId }, { onSuccess: () => refetch() });
+  };
 
   return (
     <div className="flex-1 overflow-auto">
@@ -316,6 +331,97 @@ function VariantAnalysisDetail({ variantId }: { variantId: number }) {
 
           {/* Analysis Panel */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Atlas Card */}
+            {!isSnv ? (
+              <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+                <Info className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+                <p className="text-sm text-blue-800">
+                  Atlas precomputed scores cover SNVs only — this{' '}
+                  {variant.variant_type?.toLowerCase() ?? 'variant'} uses the live
+                  AlphaGenome API below.
+                </p>
+              </div>
+            ) : (
+              <div className="card">
+                <div className="card-header flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-primary-600" />
+                    <h3 className="text-lg font-medium text-gray-900">
+                      AlphaGenome Atlas
+                    </h3>
+                  </div>
+                  {atlasAnnotation?.avi_score != null && (
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500">AVI Score</p>
+                      <p
+                        className={clsx(
+                          'text-2xl font-bold',
+                          getScoreColor(atlasAnnotation.avi_score)
+                        )}
+                      >
+                        {atlasAnnotation.avi_score.toFixed(3)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="card-body space-y-4">
+                  {atlasAnnotation?.attributions ? (
+                    <>
+                      <div>
+                        <p className="mb-2 text-sm font-medium text-gray-700">
+                          What drives this variant's impact
+                        </p>
+                        <AttributionBreakdown
+                          attributions={atlasAnnotation.attributions}
+                        />
+                      </div>
+                      {triage && triage.source === 'atlas' && (
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">
+                              Recommended deep-dives
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {triage.recommended_analysis_types
+                                .map((t) => t.replace(/_/g, ' '))
+                                .join(', ')}
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleRunTriaged}
+                            disabled={isRunning}
+                            className="btn btn-primary flex items-center gap-2"
+                          >
+                            {runTriaged.isPending ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Running...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="h-4 w-4" />
+                                Run recommended analyses
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                      {atlasAnnotation.atlas_version && (
+                        <p className="text-xs text-gray-400">
+                          {atlasAnnotation.atlas_version} · annotated{' '}
+                          {new Date(atlasAnnotation.annotated_at).toLocaleString()}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      Loading precomputed Atlas scores...
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Run Analysis Card */}
             <div className="card">
               <div className="card-header flex items-center justify-between">

@@ -26,6 +26,8 @@ export interface Variant {
   clinvar?: ClinVarAnnotation;
   pharmgkb?: PharmGKBAnnotation[];
   has_analysis: boolean;
+  avi_score?: number | null;
+  top_modality?: string | null;
 }
 
 export interface VariantListResponse {
@@ -130,6 +132,50 @@ export interface BatchJob {
   created_at: string;
 }
 
+// Atlas types
+export interface AtlasAnnotation {
+  id: number;
+  variant_id: number;
+  avi_score: number | null;
+  feature_importance: Record<string, number> | null;
+  modality_scores: Record<string, number> | null;
+  attributions: Record<string, number> | null;
+  top_modality: string | null;
+  atlas_version: string | null;
+  lifted_chromosome: string | null;
+  lifted_position: number | null;
+  annotated_at: string;
+}
+
+export interface AtlasJob extends BatchJob {
+  skipped_non_snv: number;
+  skipped_existing: number;
+}
+
+export interface AtlasAnnotateOptions {
+  non_ref_only?: boolean;
+  pass_only?: boolean;
+  min_quality?: number;
+  coding_only?: boolean;
+  chromosomes?: string[];
+  overwrite?: boolean;
+}
+
+export interface TopVariantEntry {
+  variant: Variant;
+  avi_score: number;
+  top_modality: string | null;
+  attributions: Record<string, number> | null;
+}
+
+export interface TriageRecommendation {
+  source: 'atlas' | 'fallback_full';
+  avi_score?: number | null;
+  attributions?: Record<string, number> | null;
+  recommended_analysis_types: string[];
+  skipped: string[];
+}
+
 // Panel types
 export interface PharmaGeneReport {
   gene_symbol: string;
@@ -193,4 +239,7 @@ export interface VariantFilters {
   min_quality?: number;
   search?: string;
   vcf_file_id?: number;
+  min_avi?: number;
+  sort_by?: string;
+  sort_dir?: 'asc' | 'desc';
 }
